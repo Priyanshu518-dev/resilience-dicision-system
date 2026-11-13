@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ⚡ Resilient Decision System Platform
 
 [![Tests](https://img.shields.io/badge/tests-15%20passed-success)](https://github.com/)
@@ -151,3 +152,7 @@ When running `npm start`, visit `http://localhost:3000` to access the full-featu
 | **Explainability & Auditability** | 10 | Structured rule traces with actual input vs expected thresholds, human-readable explanations, immutable audit timelines. Documented in [DECISION_EXPLANATIONS.md](file:///c:/Users/Hp/OneDrive/Desktop/vsff/HostelManagement/resilient-decision-system/DECISION_EXPLANATIONS.md). |
 | **Testing Depth** | 10 | 15 passing unit and integration tests covering happy path, schema violations, duplicate requests, dependency failures, transient retries, and versioning. |
 | **Trade-off Defense** | 5 | In-depth trade-off analysis in [ARCHITECTURE.md](file:///c:/Users/Hp/OneDrive/Desktop/vsff/HostelManagement/resilient-decision-system/ARCHITECTURE.md#5-architectural-trade-offs--design-defense) justifying in-memory stores, AST rule engines, and synchronous FSM orchestration. |
+=======
+# resilience-dicision-system
+a project for scoreme
+>>>>>>> eda50cf2c91ee0c4a8f636f7059a48c29fe2e58b
