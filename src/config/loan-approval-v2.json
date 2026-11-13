@@ -1,0 +1,148 @@
+{
+  "workflow": {
+    "id": "loan-approval",
+    "name": "Personal & Auto Loan Decision Workflow",
+    "version": "2.0.0",
+    "description": "Updated risk-tightened underwriting decision workflow with heightened credit cutoffs and tightened manual review windows",
+    "schema": {
+      "fields": {
+        "applicantName": { "type": "string", "required": true },
+        "requestedAmount": { "type": "number", "required": true, "min": 500, "max": 250000 },
+        "annualIncome": { "type": "number", "required": true, "min": 15000 },
+        "employmentStatus": { "type": "string", "required": true, "enum": ["EMPLOYED", "SELF_EMPLOYED", "UNEMPLOYED", "RETIRED"] }
+      }
+    },
+    "initialStage": "stage_validation",
+    "stages": [
+      {
+        "id": "stage_validation",
+        "name": "Application Intake & Schema Validation",
+        "type": "VALIDATION",
+        "nextStage": "stage_bureau_enrichment"
+      },
+      {
+        "id": "stage_bureau_enrichment",
+        "name": "Credit Bureau Integration",
+        "type": "ENRICHMENT",
+        "serviceName": "credit_bureau",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_fraud_screening"
+      },
+      {
+        "id": "stage_fraud_screening",
+        "name": "Fraud Intelligence Screening",
+        "type": "ENRICHMENT",
+        "serviceName": "fraud_detection",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_underwriting_decision"
+      },
+      {
+        "id": "stage_underwriting_decision",
+        "name": "Underwriting Ruleset Evaluation v2",
+        "type": "RULE_EVALUATION",
+        "rulesetId": "ruleset_loan_v2"
+      }
+    ]
+  },
+  "ruleset": {
+    "id": "ruleset_loan_v2",
+    "name": "Loan Underwriting Policy v2 (Tightened Risk Appetite)",
+    "description": "Heightened credit score thresholds and tighter fraud tolerance",
+    "evaluationMode": "FIRST_MATCH",
+    "rules": [
+      {
+        "id": "RULE_FRAUD_TIGHT",
+        "name": "Heightened Fraud Risk Filter",
+        "description": "Reject if fraud score exceeds 35 (tightened from 50)",
+        "priority": 100,
+        "condition": {
+          "field": "fraud_detection.fraudRiskScore",
+          "operator": "gt",
+          "value": 35
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_FRAUD_RISK_TIGHTENED",
+          "reasonMessage": "Application exceeded stricter fraud threshold under Policy v2 (> 35)",
+          "severity": "CRITICAL"
+        }
+      },
+      {
+        "id": "RULE_CREDIT_CUTOFF_RAISED",
+        "name": "Elevated Subprime Credit Cutoff",
+        "description": "Reject applicant if credit score is below 640 (raised from 600)",
+        "priority": 90,
+        "condition": {
+          "field": "credit_bureau.creditScore",
+          "operator": "lt",
+          "value": 640
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_LOW_CREDIT_V2",
+          "reasonMessage": "Credit score below elevated cutoff of 640 under Policy v2",
+          "severity": "HIGH"
+        }
+      },
+      {
+        "id": "RULE_BORDERLINE_MANUAL_REVIEW_V2",
+        "name": "Borderline Credit Tier Manual Escalation v2",
+        "description": "Refer applicants with credit scores between 640 and 719 to manual underwriting supervisor",
+        "priority": 80,
+        "condition": {
+          "field": "credit_bureau.creditScore",
+          "operator": "between",
+          "value": [640, 719]
+        },
+        "action": {
+          "type": "REQUIRE_MANUAL_REVIEW",
+          "reasonCode": "REVIEW_BORDERLINE_CREDIT_V2",
+          "reasonMessage": "Credit score falls within elevated manual underwriting band [640-719]",
+          "severity": "MEDIUM"
+        }
+      },
+      {
+        "id": "RULE_PRIME_AUTO_APPROVAL_V2",
+        "name": "Prime Tier Instant Approval v2",
+        "description": "Approve prime applicants with credit score >= 720 and healthy DTI <= 0.40",
+        "priority": 70,
+        "condition": {
+          "all": [
+            {
+              "field": "credit_bureau.creditScore",
+              "operator": "gte",
+              "value": 720
+            },
+            {
+              "field": "credit_bureau.debtToIncomeRatio",
+              "operator": "lte",
+              "value": 0.40
+            }
+          ]
+        },
+        "action": {
+          "type": "APPROVE",
+          "reasonCode": "APPROVE_SUPER_PRIME",
+          "reasonMessage": "Super-prime qualification verified",
+          "mutations": {
+            "interestRateOffered": "5.75%",
+            "maxPreapprovedAmount": 60000
+          }
+        }
+      }
+    ],
+    "defaultAction": {
+      "type": "REQUIRE_MANUAL_REVIEW",
+      "reasonCode": "REVIEW_NON_STANDARD_V2",
+      "reasonMessage": "Non-standard profile requires underwriter review"
+    }
+  }
+}

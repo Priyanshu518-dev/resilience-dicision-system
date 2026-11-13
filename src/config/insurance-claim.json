@@ -1,0 +1,119 @@
+{
+  "workflow": {
+    "id": "insurance-claim",
+    "name": "Automated Insurance Claim Processing Workflow",
+    "version": "1.0.0",
+    "description": "Fast-tracks low-value claims, screens for fraud, and escalates complex losses to claims adjusters",
+    "schema": {
+      "fields": {
+        "claimantName": { "type": "string", "required": true },
+        "policyNumber": { "type": "string", "required": true },
+        "incidentType": { "type": "string", "required": true, "enum": ["AUTO_ACCIDENT", "WATER_DAMAGE", "THEFT", "MEDICAL"] },
+        "claimAmount": { "type": "number", "required": true, "min": 50 }
+      }
+    },
+    "initialStage": "stage_claim_validation",
+    "stages": [
+      {
+        "id": "stage_claim_validation",
+        "name": "Claim Intake & Policy Validation",
+        "type": "VALIDATION",
+        "nextStage": "stage_fraud_analysis"
+      },
+      {
+        "id": "stage_fraud_analysis",
+        "name": "Claims Fraud & Anomaly Detection",
+        "type": "ENRICHMENT",
+        "serviceName": "fraud_detection",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_claim_adjudication"
+      },
+      {
+        "id": "stage_claim_adjudication",
+        "name": "Claim Adjudication Ruleset",
+        "type": "RULE_EVALUATION",
+        "rulesetId": "ruleset_insurance_claim"
+      }
+    ]
+  },
+  "ruleset": {
+    "id": "ruleset_insurance_claim",
+    "name": "Insurance Adjudication Policy",
+    "description": "Multi-tier claim payout routing",
+    "evaluationMode": "FIRST_MATCH",
+    "rules": [
+      {
+        "id": "RULE_FRAUD_BLOCK",
+        "name": "Suspected Fraud Escalation",
+        "description": "Flag suspicious claims for SIU (Special Investigation Unit)",
+        "priority": 100,
+        "condition": {
+          "field": "fraud_detection.fraudRiskScore",
+          "operator": "gt",
+          "value": 50
+        },
+        "action": {
+          "type": "REQUIRE_MANUAL_REVIEW",
+          "reasonCode": "SIU_INVESTIGATION_REQUIRED",
+          "reasonMessage": "Claim exhibits elevated anomaly indicators requiring Special Investigation Unit review",
+          "severity": "CRITICAL"
+        }
+      },
+      {
+        "id": "RULE_EXCESSIVE_CLAIM",
+        "name": "Catastrophic Claim Adjuster Escalation",
+        "description": "Claims exceeding $25,000 require senior adjuster review",
+        "priority": 90,
+        "condition": {
+          "field": "claimAmount",
+          "operator": "gt",
+          "value": 25000
+        },
+        "action": {
+          "type": "REQUIRE_MANUAL_REVIEW",
+          "reasonCode": "SENIOR_ADJUSTER_APPROVAL",
+          "reasonMessage": "High dollar loss exceeds automated settlement authority limit of $25,000",
+          "severity": "HIGH"
+        }
+      },
+      {
+        "id": "RULE_EXPRESS_SETTLEMENT",
+        "name": "Express Fast-Track Payout",
+        "description": "Instantly settle low-dollar claims under $1,500 with low fraud score",
+        "priority": 80,
+        "condition": {
+          "all": [
+            {
+              "field": "claimAmount",
+              "operator": "lte",
+              "value": 1500
+            },
+            {
+              "field": "fraud_detection.fraudRiskScore",
+              "operator": "lte",
+              "value": 25
+            }
+          ]
+        },
+        "action": {
+          "type": "APPROVE",
+          "reasonCode": "EXPRESS_SETTLEMENT_APPROVED",
+          "reasonMessage": "Claim qualified for instantaneous straight-through settlement",
+          "mutations": {
+            "payoutMethod": "INSTANT_ACH",
+            "deductibleApplied": 100
+          }
+        }
+      }
+    ],
+    "defaultAction": {
+      "type": "REQUIRE_MANUAL_REVIEW",
+      "reasonCode": "DESK_ADJUSTER_REVIEW",
+      "reasonMessage": "Standard adjuster desk assessment required"
+    }
+  }
+}

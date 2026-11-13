@@ -1,0 +1,165 @@
+{
+  "workflow": {
+    "id": "loan-approval",
+    "name": "Personal & Auto Loan Decision Workflow",
+    "version": "1.0.0",
+    "description": "Standard underwriting decision workflow with credit bureau enrichment, fraud screening, and tier-based decisioning",
+    "schema": {
+      "fields": {
+        "applicantName": { "type": "string", "required": true },
+        "requestedAmount": { "type": "number", "required": true, "min": 500, "max": 200000 },
+        "annualIncome": { "type": "number", "required": true, "min": 10000 },
+        "employmentStatus": { "type": "string", "required": true, "enum": ["EMPLOYED", "SELF_EMPLOYED", "UNEMPLOYED", "RETIRED"] }
+      }
+    },
+    "initialStage": "stage_validation",
+    "stages": [
+      {
+        "id": "stage_validation",
+        "name": "Application Intake & Schema Validation",
+        "type": "VALIDATION",
+        "nextStage": "stage_bureau_enrichment"
+      },
+      {
+        "id": "stage_bureau_enrichment",
+        "name": "Credit Bureau Integration",
+        "type": "ENRICHMENT",
+        "serviceName": "credit_bureau",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_fraud_screening"
+      },
+      {
+        "id": "stage_fraud_screening",
+        "name": "Fraud & Risk Intelligence Screening",
+        "type": "ENRICHMENT",
+        "serviceName": "fraud_detection",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_underwriting_decision"
+      },
+      {
+        "id": "stage_underwriting_decision",
+        "name": "Underwriting Ruleset Evaluation",
+        "type": "RULE_EVALUATION",
+        "rulesetId": "ruleset_loan_v1"
+      }
+    ]
+  },
+  "ruleset": {
+    "id": "ruleset_loan_v1",
+    "name": "Loan Underwriting Policy v1",
+    "description": "Evaluates credit risk, DTI limits, and fraud indicators",
+    "evaluationMode": "FIRST_MATCH",
+    "rules": [
+      {
+        "id": "RULE_FRAUD_HIGH",
+        "name": "High Fraud Risk Filter",
+        "description": "Reject applications with severe fraud risk score above 50",
+        "priority": 100,
+        "condition": {
+          "field": "fraud_detection.fraudRiskScore",
+          "operator": "gt",
+          "value": 50
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_FRAUD_RISK",
+          "reasonMessage": "Application flagged by automated fraud intelligence detection (Score > 50)",
+          "severity": "CRITICAL"
+        }
+      },
+      {
+        "id": "RULE_CREDIT_SUBPRIME",
+        "name": "Subprime Credit Score Filter",
+        "description": "Reject applicant if credit score is below minimum cutoff of 600",
+        "priority": 90,
+        "condition": {
+          "field": "credit_bureau.creditScore",
+          "operator": "lt",
+          "value": 600
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_LOW_CREDIT",
+          "reasonMessage": "Credit score does not meet the minimum underwriting cutoff of 600",
+          "severity": "HIGH"
+        }
+      },
+      {
+        "id": "RULE_DTI_EXCESSIVE",
+        "name": "Excessive Debt-to-Income Filter",
+        "description": "Reject if debt-to-income ratio exceeds 0.50",
+        "priority": 80,
+        "condition": {
+          "field": "credit_bureau.debtToIncomeRatio",
+          "operator": "gt",
+          "value": 0.50
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_HIGH_DTI",
+          "reasonMessage": "Calculated Debt-to-Income ratio exceeds regulatory cap of 50%",
+          "severity": "HIGH"
+        }
+      },
+      {
+        "id": "RULE_BORDERLINE_MANUAL_REVIEW",
+        "name": "Borderline Credit Tier Manual Escalation",
+        "description": "Refer applicants with credit scores between 600 and 680 to manual underwriting supervisor",
+        "priority": 70,
+        "condition": {
+          "field": "credit_bureau.creditScore",
+          "operator": "between",
+          "value": [600, 679]
+        },
+        "action": {
+          "type": "REQUIRE_MANUAL_REVIEW",
+          "reasonCode": "REVIEW_BORDERLINE_CREDIT",
+          "reasonMessage": "Credit score falls within the discretionary manual underwriting band [600-679]",
+          "severity": "MEDIUM"
+        }
+      },
+      {
+        "id": "RULE_PRIME_AUTO_APPROVAL",
+        "name": "Prime Tier Instant Approval",
+        "description": "Approve prime applicants with credit score >= 680 and healthy DTI <= 0.45",
+        "priority": 60,
+        "condition": {
+          "all": [
+            {
+              "field": "credit_bureau.creditScore",
+              "operator": "gte",
+              "value": 680
+            },
+            {
+              "field": "credit_bureau.debtToIncomeRatio",
+              "operator": "lte",
+              "value": 0.45
+            }
+          ]
+        },
+        "action": {
+          "type": "APPROVE",
+          "reasonCode": "APPROVE_PRIME",
+          "reasonMessage": "Prime applicant qualification verified",
+          "mutations": {
+            "interestRateOffered": "6.49%",
+            "maxPreapprovedAmount": 45000
+          }
+        }
+      }
+    ],
+    "defaultAction": {
+      "type": "APPROVE",
+      "reasonCode": "APPROVE_STANDARD",
+      "reasonMessage": "Standard policy terms approved"
+    }
+  }
+}

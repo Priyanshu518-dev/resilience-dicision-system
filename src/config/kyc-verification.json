@@ -1,0 +1,118 @@
+{
+  "workflow": {
+    "id": "kyc-verification",
+    "name": "Identity & KYC Document Verification Workflow",
+    "version": "1.0.0",
+    "description": "Automated identity document screening, sanctions list checks, and PEP compliance verification",
+    "schema": {
+      "fields": {
+        "fullName": { "type": "string", "required": true },
+        "idDocumentType": { "type": "string", "required": true, "enum": ["PASSPORT", "DRIVING_LICENSE", "NATIONAL_ID"] },
+        "idDocumentNumber": { "type": "string", "required": true },
+        "countryOfIssuance": { "type": "string", "required": true }
+      }
+    },
+    "initialStage": "stage_kyc_intake",
+    "stages": [
+      {
+        "id": "stage_kyc_intake",
+        "name": "Document Metadata Validation",
+        "type": "VALIDATION",
+        "nextStage": "stage_kyc_screening"
+      },
+      {
+        "id": "stage_kyc_screening",
+        "name": "Sanctions & Biometrics Verification",
+        "type": "ENRICHMENT",
+        "serviceName": "kyc_verification",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_compliance_decision"
+      },
+      {
+        "id": "stage_compliance_decision",
+        "name": "Compliance Rule Evaluation",
+        "type": "RULE_EVALUATION",
+        "rulesetId": "ruleset_kyc_verification"
+      }
+    ]
+  },
+  "ruleset": {
+    "id": "ruleset_kyc_verification",
+    "name": "KYC Compliance Policy",
+    "description": "AML/CFT compliance screening rules",
+    "evaluationMode": "FIRST_MATCH",
+    "rules": [
+      {
+        "id": "RULE_SANCTIONS_MATCH",
+        "name": "Sanctions List Rejection",
+        "description": "Immediate block if applicant matches OFAC/UN sanctions watchlists",
+        "priority": 100,
+        "condition": {
+          "field": "kyc_verification.sanctionsListMatch",
+          "operator": "eq",
+          "value": true
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_SANCTIONS_HIT",
+          "reasonMessage": "Identity matches international regulatory sanctions watchlist",
+          "severity": "CRITICAL"
+        }
+      },
+      {
+        "id": "RULE_LOW_BIOMETRIC_CONFIDENCE",
+        "name": "Low Biometric Match Escalation",
+        "description": "Escalate to compliance officer if biometric match confidence is under 80%",
+        "priority": 80,
+        "condition": {
+          "field": "kyc_verification.biometricMatchConfidence",
+          "operator": "lt",
+          "value": 0.80
+        },
+        "action": {
+          "type": "REQUIRE_MANUAL_REVIEW",
+          "reasonCode": "REVIEW_BIOMETRIC_MISMATCH",
+          "reasonMessage": "Facial biometric match confidence is below automated acceptance threshold of 80%",
+          "severity": "HIGH"
+        }
+      },
+      {
+        "id": "RULE_KYC_AUTO_APPROVED",
+        "name": "KYC Verified Passed",
+        "description": "Auto-pass verified identity with valid document and clean screening",
+        "priority": 70,
+        "condition": {
+          "all": [
+            {
+              "field": "kyc_verification.idVerificationStatus",
+              "operator": "eq",
+              "value": "PASSED"
+            },
+            {
+              "field": "kyc_verification.sanctionsListMatch",
+              "operator": "eq",
+              "value": false
+            }
+          ]
+        },
+        "action": {
+          "type": "APPROVE",
+          "reasonCode": "KYC_CLEARED",
+          "reasonMessage": "Identity verified and sanctioned lists clean",
+          "mutations": {
+            "accountTier": "VERIFIED_TIER_2"
+          }
+        }
+      }
+    ],
+    "defaultAction": {
+      "type": "REQUIRE_MANUAL_REVIEW",
+      "reasonCode": "REVIEW_MANUAL_DOC_CHECK",
+      "reasonMessage": "Document requires manual compliance review"
+    }
+  }
+}

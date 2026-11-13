@@ -1,0 +1,45 @@
+{
+  "name": "resilient-decision-system",
+  "version": "1.0.0",
+  "description": "Configurable Workflow Decision Platform with Resilience, State Management, Idempotency, and Auditability",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "decision-cli": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "start": "tsx src/api/server.ts",
+    "dev": "tsx watch src/api/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "tsx src/cli/index.ts",
+    "decision:test": "vitest run",
+    "decision:start": "tsx src/api/server.ts",
+    "decision:cli": "tsx src/cli/index.ts",
+    "build": "tsc"
+  },
+  "keywords": [
+    "workflow-engine",
+    "decision-system",
+    "resilience",
+    "idempotency",
+    "rules-engine",
+    "auditability"
+  ],
+  "author": "Engineering Team",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^15.1.0",
+    "cors": "^2.8.6",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

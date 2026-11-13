@@ -1,0 +1,102 @@
+{
+  "workflow": {
+    "id": "vendor-onboarding",
+    "name": "Corporate Vendor Qualification Workflow",
+    "version": "1.0.0",
+    "description": "Validates business registry, tax status, and credit ratings for vendor onboarding",
+    "schema": {
+      "fields": {
+        "companyName": { "type": "string", "required": true },
+        "taxId": { "type": "string", "required": true },
+        "annualTurnover": { "type": "number", "required": true, "min": 50000 },
+        "category": { "type": "string", "required": true, "enum": ["IT_SERVICES", "LOGISTICS", "FACILITIES", "LEGAL", "MARKETING"] }
+      }
+    },
+    "initialStage": "stage_vendor_validation",
+    "stages": [
+      {
+        "id": "stage_vendor_validation",
+        "name": "Vendor Profile Intake",
+        "type": "VALIDATION",
+        "nextStage": "stage_registry_check"
+      },
+      {
+        "id": "stage_registry_check",
+        "name": "Commercial Registry & Tax Check",
+        "type": "ENRICHMENT",
+        "serviceName": "vendor_registry",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "initialDelayMs": 30,
+          "backoffMultiplier": 1.5
+        },
+        "nextStage": "stage_vendor_decision"
+      },
+      {
+        "id": "stage_vendor_decision",
+        "name": "Vendor Approval Ruleset",
+        "type": "RULE_EVALUATION",
+        "rulesetId": "ruleset_vendor_onboarding"
+      }
+    ]
+  },
+  "ruleset": {
+    "id": "ruleset_vendor_onboarding",
+    "name": "Vendor Risk Qualification Policy",
+    "description": "Evaluates commercial registry and DUNS ratings",
+    "evaluationMode": "FIRST_MATCH",
+    "rules": [
+      {
+        "id": "RULE_INACTIVE_TAX_ID",
+        "name": "Inactive Tax ID Rejection",
+        "description": "Reject if vendor tax status is not active",
+        "priority": 100,
+        "condition": {
+          "field": "vendor_registry.tinStatus",
+          "operator": "neq",
+          "value": "ACTIVE"
+        },
+        "action": {
+          "type": "REJECT",
+          "reasonCode": "REJECT_INACTIVE_TAX_STATUS",
+          "reasonMessage": "Vendor Tax Identification Number is inactive or invalid with government treasury",
+          "severity": "CRITICAL"
+        }
+      },
+      {
+        "id": "RULE_APPROVED_PREFERRED_VENDOR",
+        "name": "Preferred Vendor Qualification",
+        "description": "Auto-qualify vendor with active tax clearance and valid business registration",
+        "priority": 80,
+        "condition": {
+          "all": [
+            {
+              "field": "vendor_registry.businessRegistrationValid",
+              "operator": "eq",
+              "value": true
+            },
+            {
+              "field": "vendor_registry.taxClearanceValid",
+              "operator": "eq",
+              "value": true
+            }
+          ]
+        },
+        "action": {
+          "type": "APPROVE",
+          "reasonCode": "VENDOR_APPROVED",
+          "reasonMessage": "Corporate registry and tax compliance verified",
+          "mutations": {
+            "paymentTerms": "NET_30",
+            "approvedSpendingLimit": 250000
+          }
+        }
+      }
+    ],
+    "defaultAction": {
+      "type": "REQUIRE_MANUAL_REVIEW",
+      "reasonCode": "VENDOR_LEGAL_REVIEW",
+      "reasonMessage": "Requires procurement committee manual review"
+    }
+  }
+}
